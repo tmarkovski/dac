@@ -37,16 +37,16 @@ impl MercurialScheme {
         }
     }
 
-    pub fn randomZp(&self, rng: &mut rand::RAND_impl) -> big::BIG {
+    pub fn randomZp(&self, rng: &mut impl rand::RAND) -> big::BIG {
         let rho = big::BIG::randomnum(&self.r, rng);
         return rho;
     }
 
-    pub fn odd_signer(&self) -> &impl Signer<ECP2, ECP> {
+    pub fn as_odd(&self) -> &impl Signer<ECP2, ECP> {
         self
     }
 
-    pub fn even_signer(&self) -> &impl Signer<ECP, ECP2> {
+    pub fn as_even(&self) -> &impl Signer<ECP, ECP2> {
         self
     }
 
@@ -58,56 +58,6 @@ impl MercurialScheme {
         }
         return new_sk;
     }
-
-    pub fn ConvertPK(&self, pk: Vec<ecp2::ECP2>, rho: &big::BIG) -> Vec<ecp2::ECP2> {
-        // converts pk with randomness rho
-        let mut new_pk = pk;
-        for i in 0..self.ell {
-            new_pk[i] = ecp2::ECP2::mul(&new_pk[i], &rho);
-        }
-        return new_pk;
-    }
-
-    pub fn ConvertSignature(
-        &self,
-        sigma: Signature<ECP, ECP2>,
-        rho: &big::BIG,
-        rng: &mut impl rand::RAND,
-    ) -> Signature<ECP, ECP2> {
-        // converts sigma with randomness rho
-        let mut new_sigma = sigma;
-        let psi = big::BIG::randomnum(&self.r, rng);
-        let mut psi_inv = big::BIG::new_copy(&psi);
-        big::BIG::invmodp(&mut psi_inv, &self.r);
-        new_sigma.Z = ecp::ECP::mul(&new_sigma.Z, &rho);
-        new_sigma.Z = ecp::ECP::mul(&new_sigma.Z, &psi);
-        new_sigma.Y = ecp::ECP::mul(&new_sigma.Y, &psi_inv);
-        new_sigma.Yhat = ecp2::ECP2::mul(&new_sigma.Yhat, &psi_inv);
-        return new_sigma;
-    }
-
-    pub fn ChangeRepresentation(
-        &self,
-        M: Vec<ecp::ECP>,
-        sigma: Signature<ECP, ECP2>,
-        mu: &big::BIG,
-        rng: &mut impl rand::RAND,
-    ) -> (Vec<ecp::ECP>, Signature<ECP, ECP2>) {
-        // changes the representation of the equivalence class for M & sigma
-        let mut new_sigma = sigma;
-        let mut new_M = M;
-        let psi = big::BIG::randomnum(&self.r, rng);
-        let mut psi_inv = big::BIG::new_copy(&psi);
-        big::BIG::invmodp(&mut psi_inv, &self.r);
-        for i in 0..self.ell {
-            new_M[i] = ecp::ECP::mul(&new_M[i], &mu);
-        }
-        new_sigma.Z = ecp::ECP::mul(&new_sigma.Z, &mu);
-        new_sigma.Z = ecp::ECP::mul(&new_sigma.Z, &psi);
-        new_sigma.Y = ecp::ECP::mul(&new_sigma.Y, &psi_inv);
-        new_sigma.Yhat = ecp2::ECP2::mul(&new_sigma.Yhat, &psi_inv);
-        return (new_M, new_sigma);
-    }
 }
 
 pub trait Signer<T, U> {
@@ -115,6 +65,17 @@ pub trait Signer<T, U> {
     fn Sign(&self, sk: &Vec<big::BIG>, M: &Vec<U>, rng: &mut impl rand::RAND) -> Signature<U, T>;
     fn Verify(&self, pk: &Vec<T>, M: &Vec<U>, sigma: &Signature<U, T>) -> bool;
     fn HashMessage(&self, M: &[u8]) -> U;
+
+    fn ConvertPK(&self, pk: Vec<T>, rho: &big::BIG) -> Vec<T>;
+    fn ChangeRepresentation(
+        &self,
+        M: Vec<U>,
+        sigma: Signature<U, T>,
+        mu: &big::BIG,
+        rng: &mut impl rand::RAND,
+    ) -> (Vec<U>, Signature<U, T>);
+
+    fn ConvertSignature(&self, sigma: Signature<U, T>, rho: &big::BIG, rng: &mut impl rand::RAND) -> Signature<U, T>;
 }
 
 impl Signer<ECP2, ECP> for MercurialScheme {
@@ -166,6 +127,56 @@ impl Signer<ECP2, ECP> for MercurialScheme {
 
     fn HashMessage(&self, M: &[u8]) -> ECP {
         bls_hash_to_point(M)
+    }
+
+    fn ConvertPK(&self, pk: Vec<ecp2::ECP2>, rho: &big::BIG) -> Vec<ecp2::ECP2> {
+        // converts pk with randomness rho
+        let mut new_pk = pk;
+        for i in 0..self.ell {
+            new_pk[i] = ecp2::ECP2::mul(&new_pk[i], &rho);
+        }
+        return new_pk;
+    }
+
+    fn ChangeRepresentation(
+        &self,
+        M: Vec<ecp::ECP>,
+        sigma: Signature<ECP, ECP2>,
+        mu: &big::BIG,
+        rng: &mut impl rand::RAND,
+    ) -> (Vec<ecp::ECP>, Signature<ECP, ECP2>) {
+        // changes the representation of the equivalence class for M & sigma
+        let mut new_sigma = sigma;
+        let mut new_M = M;
+        let psi = big::BIG::randomnum(&self.r, rng);
+        let mut psi_inv = big::BIG::new_copy(&psi);
+        big::BIG::invmodp(&mut psi_inv, &self.r);
+        for i in 0..self.ell {
+            new_M[i] = ecp::ECP::mul(&new_M[i], &mu);
+        }
+        new_sigma.Z = ecp::ECP::mul(&new_sigma.Z, &mu);
+        new_sigma.Z = ecp::ECP::mul(&new_sigma.Z, &psi);
+        new_sigma.Y = ecp::ECP::mul(&new_sigma.Y, &psi_inv);
+        new_sigma.Yhat = ecp2::ECP2::mul(&new_sigma.Yhat, &psi_inv);
+        return (new_M, new_sigma);
+    }
+
+    fn ConvertSignature(
+        &self,
+        sigma: Signature<ECP, ECP2>,
+        rho: &big::BIG,
+        rng: &mut impl rand::RAND,
+    ) -> Signature<ECP, ECP2> {
+        // converts sigma with randomness rho
+        let mut new_sigma = sigma;
+        let psi = big::BIG::randomnum(&self.r, rng);
+        let mut psi_inv = big::BIG::new_copy(&psi);
+        big::BIG::invmodp(&mut psi_inv, &self.r);
+        new_sigma.Z = ecp::ECP::mul(&new_sigma.Z, &rho);
+        new_sigma.Z = ecp::ECP::mul(&new_sigma.Z, &psi);
+        new_sigma.Y = ecp::ECP::mul(&new_sigma.Y, &psi_inv);
+        new_sigma.Yhat = ecp2::ECP2::mul(&new_sigma.Yhat, &psi_inv);
+        return new_sigma;
     }
 }
 
@@ -230,6 +241,56 @@ impl Signer<ECP, ECP2> for MercurialScheme {
         P.affine();
         P
     }
+
+    fn ConvertPK(&self, pk: Vec<ECP>, rho: &big::BIG) -> Vec<ECP> {
+        // converts pk with randomness rho
+        let mut new_pk = pk;
+        for i in 0..self.ell {
+            new_pk[i] = ecp::ECP::mul(&new_pk[i], &rho);
+        }
+        return new_pk;
+    }
+
+    fn ChangeRepresentation(
+        &self,
+        M: Vec<ECP2>,
+        sigma: Signature<ECP2, ECP>,
+        mu: &big::BIG,
+        rng: &mut impl rand::RAND,
+    ) -> (Vec<ECP2>, Signature<ECP2, ECP>) {
+        // changes the representation of the equivalence class for M & sigma
+        let mut new_sigma = sigma;
+        let mut new_M = M;
+        let psi = big::BIG::randomnum(&self.r, rng);
+        let mut psi_inv = big::BIG::new_copy(&psi);
+        big::BIG::invmodp(&mut psi_inv, &self.r);
+        for i in 0..self.ell {
+            new_M[i] = ecp2::ECP2::mul(&new_M[i], &mu);
+        }
+        new_sigma.Z = ecp2::ECP2::mul(&new_sigma.Z, &mu);
+        new_sigma.Z = ecp2::ECP2::mul(&new_sigma.Z, &psi);
+        new_sigma.Y = ecp2::ECP2::mul(&new_sigma.Y, &psi_inv);
+        new_sigma.Yhat = ecp::ECP::mul(&new_sigma.Yhat, &psi_inv);
+        return (new_M, new_sigma);
+    }
+
+    fn ConvertSignature(
+        &self,
+        sigma: Signature<ECP2, ECP>,
+        rho: &big::BIG,
+        rng: &mut impl rand::RAND,
+    ) -> Signature<ECP2, ECP> {
+        // converts sigma with randomness rho
+        let mut new_sigma = sigma;
+        let psi = big::BIG::randomnum(&self.r, rng);
+        let mut psi_inv = big::BIG::new_copy(&psi);
+        big::BIG::invmodp(&mut psi_inv, &self.r);
+        new_sigma.Z = ecp2::ECP2::mul(&new_sigma.Z, &rho);
+        new_sigma.Z = ecp2::ECP2::mul(&new_sigma.Z, &psi);
+        new_sigma.Y = ecp2::ECP2::mul(&new_sigma.Y, &psi_inv);
+        new_sigma.Yhat = ecp::ECP::mul(&new_sigma.Yhat, &psi_inv);
+        return new_sigma;
+    }
 }
 
 fn hash_to_field(hash: usize, hlen: usize, u: &mut [FP2], dst: &[u8], m: &[u8], ctr: usize) {
@@ -275,11 +336,11 @@ mod test {
     fn test_sign_verify_odd() {
         let scheme = MercurialScheme::new(2);
         let mut rng = prepare_rng();
-        let (sk, pk) = scheme.odd_signer().KeyGen(&mut rng);
+        let (sk, pk) = scheme.as_odd().KeyGen(&mut rng);
 
         let M = vec![
-            scheme.odd_signer().HashMessage(b"hello"),
-            scheme.odd_signer().HashMessage(b"world"),
+            scheme.as_odd().HashMessage(b"hello"),
+            scheme.as_odd().HashMessage(b"world"),
         ];
 
         let sigma = scheme.Sign(&sk, &M, &mut rng);
@@ -294,7 +355,7 @@ mod test {
     #[test]
     fn test_sign_verify_even() {
         let scheme = MercurialScheme::new(2);
-        let signer = scheme.even_signer();
+        let signer = scheme.as_even();
 
         let mut rng = prepare_rng();
         let (sk, pk) = signer.KeyGen(&mut rng);
