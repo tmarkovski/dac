@@ -67,7 +67,7 @@ impl DelegatableAnonCredScheme {
 
         let mut rng = prepare_rng();
 
-        let rho = self.mss.randomZp(&mut rng);
+        let mut rho = self.mss.randomZp(&mut rng);
         let entry_0 = cred_chain[0].as_odd();
 
         let (nym_list_0, sig_list_0) = self
@@ -84,7 +84,7 @@ impl DelegatableAnonCredScheme {
                     .mss
                     .as_odd()
                     .ConvertSignature(cred_chain[i + 1].as_even().1, &rho, &mut rng);
-                let rho = self.mss.randomZp(&mut rng);
+                rho = self.mss.randomZp(&mut rng);
                 let new_entry =
                     self.mss
                         .as_odd()
@@ -100,7 +100,7 @@ impl DelegatableAnonCredScheme {
                     .mss
                     .as_even()
                     .ConvertSignature(cred_chain[i + 1].as_odd().1, &rho, &mut rng);
-                let rho = self.mss.randomZp(&mut rng);
+                rho = self.mss.randomZp(&mut rng);
                 let new_entry =
                     self.mss
                         .as_even()
@@ -112,25 +112,21 @@ impl DelegatableAnonCredScheme {
                     &cred_chain[i + 1].as_odd().1,
                 );
             }
-            //     # Note: MSS1 & MSS2 share the same functions RandomZp, ChangeRep, & ConvertSig
-            //     MSS = self.MSS1 if i % 2 == 0 else self.MSS2
-            //     sig_tilde = MSS.ConvertSig(
-            //         nym_list[i], nym_list[i + 1], sig_list[i + 1], rho
-            //     )
-            //     rho = MSS.RandomZp()
-            //     nym_list[i + 1], sig_list[i + 1] = MSS.ChangeRep(
-            //         nym_list[i], nym_list[i + 1], sig_tilde, rho
-            //     )
-            //     assert MSS.Verify(nym_list[i], nym_list[i + 1], sig_list[i + 1])
         }
 
         let sk_ = self.mss.ConvertSK(sk, &rho);
-        // nym_list.append(new_nym)
-        // MSS = self.MSS1 if len(nym_list) % 2 == 0 else self.MSS2
-        // sk = MSS.ConvertSK(sk, rho)
-        // sig_list.append(MSS.Sign(sk, new_nym))
-        // assert MSS.Verify(nym_list[-2], nym_list[-1], sig_list[-1])
-        // return nym_list, sig_list
+
+        if cred_chain.len() % 2 == 0 {
+            cred_chain.push(ChainEntry::Odd(
+                new_nym.as_odd(),
+                self.mss.as_even().Sign(&sk_, &new_nym.as_odd(), &mut rng),
+            ))
+        } else {
+            cred_chain.push(ChainEntry::Even(
+                new_nym.as_even(),
+                self.mss.as_odd().Sign(&sk_, &new_nym.as_even(), &mut rng),
+            ))
+        }
     }
 
     fn VerifyChain(&self, cred_chain: &Vec<ChainEntry>) -> bool {
@@ -185,6 +181,21 @@ enum PublicKey {
     Even(EvenPublicKey),
 }
 
+impl PublicKey {
+    pub fn as_odd(&self) -> OddPublicKey {
+        match self {
+            PublicKey::Odd(x) => x.clone(),
+            PublicKey::Even(_) => panic!("not odd"),
+        }
+    }
+    pub fn as_even(&self) -> EvenPublicKey {
+        match self {
+            PublicKey::Odd(x) => panic!("not even"),
+            PublicKey::Even(x) => x.clone(),
+        }
+    }
+}
+
 impl ChainEntry {
     pub fn as_odd(&self) -> (OddPublicKey, EvenSignature) {
         match self {
@@ -203,19 +214,34 @@ impl ChainEntry {
 mod test {
     use mcore::bn254::ecp::ECP;
 
-    use super::{ChainEntry, DelegatableAnonCredScheme};
+    use crate::dac::{ChainEntry, DelegatableAnonCredScheme, PublicKey};
 
     #[test]
     fn test_keygen() {
-        // user 1 generates keys, nyms, & gets on the credential chain
-        let dac = DelegatableAnonCredScheme::new(2);
-        let (even_keys1, odd_keys1) = dac.KeyGen();
-        let ((sk_even1, nym_even1), (sk_odd1, nym_odd1)) = dac.NymGen(even_keys1, odd_keys1);
-
+        let dac = DelegatableAnonCredScheme::new(3);
         let mut cred_chain: Vec<ChainEntry> = vec![];
-        let entry = dac.IssueFirst(nym_odd1);
-        cred_chain.insert(0, entry);
 
-        dac.VerifyChain(&cred_chain);
+        // user 1 generates keys, nyms, & gets on the credential chain
+        let (even_keys1, odd_keys1) = dac.KeyGen();
+        let (_, (sk_odd1, nym_odd1)) = dac.NymGen(even_keys1, odd_keys1);
+        let entry = dac.IssueFirst(nym_odd1);
+        cred_chain.push(entry);
+
+        assert!(dac.VerifyChain(&cred_chain));
+
+        // user 2 generates keys, nyms, & gets on the credential chain
+        let (even_keys2, odd_keys2) = dac.KeyGen();
+        let ((sk_even2, nym_even2), _) = dac.NymGen(even_keys2, odd_keys2);
+        dac.IssueNext(&mut cred_chain, PublicKey::Even(nym_even2), sk_odd1);
+
+        assert!(dac.VerifyChain(&cred_chain));
+
+        // user 3 generates keys, nyms, & gets on the credential chain
+        let (even_keys3, odd_keys3) = dac.KeyGen();
+
+        let ((sk_even3, nym_even3), (sk_odd3, nym_odd3)) = dac.NymGen(even_keys3, odd_keys3);
+        dac.IssueNext(&mut cred_chain, PublicKey::Odd(nym_odd3), sk_even2);
+
+        assert!(dac.VerifyChain(&cred_chain));
     }
 }
