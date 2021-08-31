@@ -42,11 +42,11 @@ impl MercurialScheme {
         return rho;
     }
 
-    pub fn as_odd(&self) -> &impl Signer<ECP2, ECP> {
+    pub fn as_g2(&self) -> &impl Signer<ECP2, ECP> {
         self
     }
 
-    pub fn as_even(&self) -> &impl Signer<ECP, ECP2> {
+    pub fn as_g1(&self) -> &impl Signer<ECP, ECP2> {
         self
     }
 
@@ -335,11 +335,11 @@ mod test {
     fn test_mss_odd() {
         let scheme = MercurialScheme::new(2);
         let mut rng = prepare_rng();
-        let (sk, pk) = scheme.as_odd().KeyGen(&mut rng);
+        let (sk, pk) = scheme.as_g2().KeyGen(&mut rng);
 
         let M = vec![
-            scheme.as_odd().HashMessage(b"hello"),
-            scheme.as_odd().HashMessage(b"world"),
+            scheme.as_g2().HashMessage(b"hello"),
+            scheme.as_g2().HashMessage(b"world"),
         ];
 
         let sigma = scheme.Sign(&sk, &M, &mut rng);
@@ -354,7 +354,7 @@ mod test {
     #[test]
     fn test_mss_even() {
         let scheme = MercurialScheme::new(2);
-        let signer = scheme.as_even();
+        let signer = scheme.as_g1();
 
         let mut rng = prepare_rng();
         let (sk, pk) = signer.KeyGen(&mut rng);
