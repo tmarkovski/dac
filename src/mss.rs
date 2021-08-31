@@ -328,12 +328,11 @@ pub fn prepare_rng() -> impl rand::RAND {
 
 #[cfg(test)]
 mod test {
-    use mcore::bn254::{big::BIG, ecp::ECP, ecp2::ECP2};
 
     use super::{prepare_rng, MercurialScheme, Signer};
 
     #[test]
-    fn test_sign_verify_odd() {
+    fn test_mss_odd() {
         let scheme = MercurialScheme::new(2);
         let mut rng = prepare_rng();
         let (sk, pk) = scheme.as_odd().KeyGen(&mut rng);
@@ -353,7 +352,7 @@ mod test {
     }
 
     #[test]
-    fn test_sign_verify_even() {
+    fn test_mss_even() {
         let scheme = MercurialScheme::new(2);
         let signer = scheme.as_even();
 
