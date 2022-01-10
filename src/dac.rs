@@ -1,8 +1,8 @@
 use core::panic;
 
 use mcore::{
-    bn254::ecp2::*,
-    bn254::{big::*, ecp::*},
+    bls12381::ecp2::*,
+    bls12381::{big::*, ecp::*},
 };
 
 use crate::mss::{prepare_rng, MercurialScheme, Signature, Signer};
@@ -212,7 +212,7 @@ mod test {
 
     #[test]
     fn test_dac() {
-        let dac = DelegatableAnonCredScheme::new(2);
+        let dac = DelegatableAnonCredScheme::new(1);
         let mut cred_chain: Vec<ChainEntry> = vec![];
 
         // user 1 generates keys, nyms, & gets on the credential chain

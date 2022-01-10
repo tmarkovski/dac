@@ -16,24 +16,15 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-//#![no_std]
-
-#![allow(clippy::many_single_char_names)]
-#![allow(clippy::needless_range_loop)]
-#![allow(clippy::manual_memcpy)]
-#![allow(clippy::new_without_default)]
-pub mod arch;
-pub mod aes;
-pub mod gcm;
-pub mod hmac;
-pub mod hash256;
-pub mod hash384;
-pub mod hash512;
-pub mod rand;
-pub mod share;
-pub mod sha3;
-pub mod nhs;
-pub mod x509;
-pub mod bn254;
-pub mod bls12381;
+pub mod big;
+pub mod bls;
+pub mod dbig;
+pub mod ecp;
+pub mod ecp2;
+pub mod fp;
+pub mod fp12;
+pub mod fp2;
+pub mod fp4;
+pub mod mpin;
+pub mod pair;
+pub mod rom;

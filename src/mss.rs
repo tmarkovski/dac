@@ -1,5 +1,5 @@
 use mcore::{
-    bn254::{
+    bls12381::{
         big::{self, BIG},
         bls::bls_hash_to_point,
         dbig::DBIG,
