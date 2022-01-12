@@ -331,6 +331,8 @@ pub fn prepare_rng() -> impl rand::RAND {
 #[cfg(test)]
 mod test {
 
+    use mcore::bls12381::big;
+
     use super::{prepare_rng, MercurialScheme, Signer};
 
     #[test]
@@ -366,5 +368,31 @@ mod test {
         let verify = signer.Verify(&pk, &M, &sigma);
 
         assert!(verify);
+    }
+
+    #[test]
+    fn test_sign_changerep_works() {
+        let scheme = MercurialScheme::new(2);
+        let signer = scheme.as_g1();
+
+        let mut rng = prepare_rng();
+        let (sk, pk) = signer.KeyGen(&mut rng);
+
+        let M = vec![signer.HashMessage(b"hello"), signer.HashMessage(b"world")];
+
+        let sigma = signer.Sign(&sk, &M, &mut rng);
+
+        let rho = big::BIG::randomnum(&scheme.r, &mut rng);
+        let pk_prime = scheme.ConvertPK(pk.clone(), &rho);
+        let sk_prime = scheme.ConvertSK(sk, &rho);
+        
+        let sig_prime = scheme.ConvertSignature(sigma.clone(), &rho, &mut rng);
+
+        let verify = signer.Verify(&pk, &M, &sigma);
+
+        let verify_prime = signer.Verify(&pk_prime, &M, &sig_prime);
+
+        assert!(verify);
+        assert!(verify_prime);
     }
 }
